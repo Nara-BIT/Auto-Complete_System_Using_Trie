@@ -131,7 +131,7 @@ docker compose up --build
 - **Build**: CMake, Vite
 - **Deploy**: Docker Compose
 
-## Resume Highlights
+## Conclusion
 
 - Implemented Trie-based autocomplete with O(m + K log K) prefix search across 370k+ words
 - Built fuzzy matching with bounded edit-distance using trie pruning
