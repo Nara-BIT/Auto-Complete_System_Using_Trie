@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.env
+*.log
+backend/build/
+backend/CMakeFiles/
+backend/cmake-build-*/
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.dylib
+*.bin
+.vscode/
+.idea/
