@@ -12,6 +12,23 @@ A high-performance search autocomplete system powered by a C++ Trie data structu
 - **Benchmarking** — measure insert, search, autocomplete, and fuzzy query speeds
 - **Modern UI** — dark-themed React interface with real-time suggestions
 
+## Demo
+
+### Landing Page
+![Landing Page](img/pic1.png)
+
+### Autocomplete in Action
+Type a prefix and get instant top-K suggestions ranked by frequency:
+![Autocomplete Demo](img/pic2.png)
+
+### Fuzzy Search
+Find misspelled words within edit distance 1 — type "aple" and get "apple" as a match:
+![Fuzzy Search](img/pic3.png)
+
+### Performance Benchmark
+Real-time benchmarking of search, autocomplete, and fuzzy operations across 370k+ words:
+![Performance Benchmark](img/pic4.png)
+
 ## Architecture
 
 ```
