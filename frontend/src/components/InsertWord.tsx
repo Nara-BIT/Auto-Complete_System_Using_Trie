@@ -22,24 +22,26 @@ export default function InsertWord() {
 
   return (
     <div className="insert-panel">
+      <p className="eyebrow">write path</p>
       <h2>Insert Word</h2>
+      <p className="panel-note">Adds a word to the live trie. It becomes searchable straight away.</p>
       <div className="insert-controls">
         <input
           type="text"
           value={word}
           onChange={e => setWord(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleInsert()}
-          placeholder="Enter a word to insert..."
+          placeholder="Word to insert"
         />
         <button onClick={handleInsert} disabled={inserting}>
-          {inserting ? 'Inserting...' : 'Insert'}
+          {inserting ? 'Inserting' : 'Insert word'}
         </button>
       </div>
       {result && (
         <div className={`insert-result ${result.success ? 'success' : 'error'}`}>
           {result.success
-            ? `"${result.word}" inserted (frequency: ${result.frequency})`
-            : 'Failed to insert word'}
+            ? `Added "${result.word}" — frequency ${result.frequency}`
+            : 'That word could not be added. Check it contains only letters, then try again.'}
         </div>
       )}
     </div>

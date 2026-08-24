@@ -13,10 +13,12 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>Trie Autocomplete</h1>
-        <p className="subtitle">
-          Real-time search autocomplete powered by Trie data structure
-        </p>
+        <div className="wordmark">
+          <h1>Trie Autocomplete</h1>
+          <p className="subtitle">
+            Prefix search over a C++ trie, answered as you type.
+          </p>
+        </div>
         <StatsBar />
       </header>
 
@@ -45,7 +47,7 @@ function App() {
       </main>
 
       <footer className="app-footer">
-        <p>Trie Autocomplete System &mdash; C++ Core + React Frontend</p>
+        <p>C++ core, React frontend</p>
       </footer>
     </div>
   );

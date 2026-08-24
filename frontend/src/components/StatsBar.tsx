@@ -23,16 +23,16 @@ export default function StatsBar() {
   return (
     <div className="stats-bar">
       <div className="stat">
-        <span className="stat-num">{stats.wordCount.toLocaleString()}</span>
         <span className="stat-label">words</span>
+        <span className="stat-num">{stats.wordCount.toLocaleString()}</span>
       </div>
       <div className="stat">
-        <span className="stat-num">{stats.nodeCount.toLocaleString()}</span>
         <span className="stat-label">nodes</span>
+        <span className="stat-num">{stats.nodeCount.toLocaleString()}</span>
       </div>
       <div className="stat engine-badge">
-        <span className="stat-num">{engine}</span>
         <span className="stat-label">engine</span>
+        <span className="stat-num">{engine}</span>
       </div>
     </div>
   );

@@ -10,7 +10,7 @@ A high-performance search autocomplete system powered by a C++ Trie data structu
 - **Dictionary Loading** — 370k+ words loaded and queried in milliseconds
 - **Serialization** — save/load trie state to disk for persistence
 - **Benchmarking** — measure insert, search, autocomplete, and fuzzy query speeds
-- **Modern UI** — dark-themed React interface with real-time suggestions
+- **Modern UI** — light, production-grade React interface with real-time suggestions
 
 ## Demo
 
@@ -37,10 +37,10 @@ Real-time benchmarking of search, autocomplete, and fuzzy operations across 370k
 │  (Vite + TS)    │                   │  (Node.js)       │
 └─────────────────┘                   └────────┬─────────┘
                                                │
-                                      ┌────────▼─────────┐
-                                      │  C++ Trie Engine  │
+                                      ┌────────▼───────────┐
+                                      │  C++ Trie Engine   │
                                       │  (or Node fallback)│
-                                      └──────────────────┘
+                                      └────────────────────┘
 ```
 
 ## Benchmark Results (370k words)
@@ -87,6 +87,35 @@ cd api && npm start
 docker compose up --build
 ```
 
+## Deployment (Render)
+
+The app deploys as a single Docker web service — the image compiles the C++
+engine, builds the frontend, and the Express server serves both on one port.
+
+1. Push this repo to GitHub.
+2. On [Render](https://render.com), choose **New → Blueprint** and point it at
+   the repo. Render reads `render.yaml` and provisions the service (Docker,
+   free plan, health check at `/api/health`).
+   *Or:* **New → Web Service**, connect the repo, and pick **Docker** as the
+   runtime — no other settings needed.
+3. Every push to `main` triggers an automatic redeploy.
+
+The server binds to `process.env.PORT`, which Render (and Railway / Fly.io)
+inject automatically. To run the production image locally:
+
+```bash
+docker build -t trie-autocomplete .
+docker run -p 3001:3001 trie-autocomplete   # http://localhost:3001
+```
+
+> **Note on the free tier:** the C++ CLI is invoked per request and reloads the
+> 370k-word dictionary each time, so on a low-CPU free instance queries may lag.
+> For a snappier deploy, run the engine as a persistent process (see Roadmap).
+
+> The screenshots above show an earlier dark theme; the current UI is light with
+> a cobalt accent.
+
+
 ## API Endpoints
 
 | Method | Endpoint | Body | Description |
@@ -127,7 +156,7 @@ docker compose up --build
 - **Core**: C++17 (Trie, Aho-Corasick, min-heap, DFS)
 - **API**: Express.js (Node.js)
 - **Frontend**: React + TypeScript + Vite
-- **Styling**: Custom CSS (dark theme)
+- **Styling**: Custom CSS (light theme, cobalt accent)
 - **Build**: CMake, Vite
 - **Deploy**: Docker Compose
 

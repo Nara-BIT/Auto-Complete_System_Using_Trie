@@ -24,40 +24,41 @@ export default function FuzzyResults() {
 
   return (
     <div className="fuzzy-panel">
+      <p className="eyebrow">edit distance</p>
       <h2>Fuzzy Search</h2>
-      <p className="subtitle">Find words with edit distance &le; {maxDist}</p>
+      <p className="panel-note">Finds words within {maxDist} edit{maxDist === 1 ? '' : 's'} of what you type.</p>
       <div className="fuzzy-controls">
         <input
           type="text"
           value={query}
           onChange={e => setQuery(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleSearch()}
-          placeholder="Type a misspelled word..."
+          placeholder="Enter a misspelled word"
         />
         <div className="dist-control">
-          <label>Max Distance:</label>
+          <label>max distance</label>
           <select value={maxDist} onChange={e => setMaxDist(Number(e.target.value))}>
             <option value={0}>0 (exact)</option>
             <option value={1}>1</option>
           </select>
         </div>
         <button onClick={handleSearch} disabled={searching}>
-          {searching ? 'Searching...' : 'Fuzzy Search'}
+          {searching ? 'Searching' : 'Search'}
         </button>
       </div>
 
       {results.length > 0 && (
         <div className="fuzzy-results">
           <div className="results-header">
-            <span>{results.length} matches found</span>
+            <span>{results.length} matches</span>
             <span className="query-time">{queryTime}ms</span>
           </div>
           <table>
             <thead>
               <tr>
-                <th>Word</th>
-                <th>Edit Distance</th>
-                <th>Frequency</th>
+                <th>word</th>
+                <th>distance</th>
+                <th>frequency</th>
               </tr>
             </thead>
             <tbody>

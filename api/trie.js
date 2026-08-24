@@ -2,7 +2,13 @@ const { execFileSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
-const BINARY_PATH = path.join(__dirname, '..', 'backend', 'build', 'trie_cli.exe');
+// The C++ build produces `trie_cli` on Linux/macOS (Docker, production) and
+// `trie_cli.exe` on Windows (local dev). Pick whichever is present.
+const BUILD_DIR = path.join(__dirname, '..', 'backend', 'build');
+const BINARY_PATH = [
+    path.join(BUILD_DIR, 'trie_cli'),
+    path.join(BUILD_DIR, 'trie_cli.exe'),
+].find(p => fs.existsSync(p)) || path.join(BUILD_DIR, 'trie_cli');
 
 class TrieBridge {
     constructor() {

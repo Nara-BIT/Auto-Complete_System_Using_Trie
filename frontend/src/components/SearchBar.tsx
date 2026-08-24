@@ -5,6 +5,9 @@ export default function SearchBar() {
   const { prefix, updatePrefix, results, loading, queryTimeMs } = useAutocomplete(150);
   const [selected, setSelected] = useState(-1);
 
+  // Scales the relative-weight bar on each row.
+  const maxFrequency = results.reduce((max, r) => Math.max(max, r.frequency), 0);
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -30,7 +33,7 @@ export default function SearchBar() {
           value={prefix}
           onChange={e => { updatePrefix(e.target.value); setSelected(-1); }}
           onKeyDown={handleKeyDown}
-          placeholder="Type to search... (e.g., 'app', 'ban', 'chr')"
+          placeholder="Start typing a prefix — try app, ban or chr"
           autoFocus
         />
         {loading && <span className="spinner" />}
@@ -42,19 +45,29 @@ export default function SearchBar() {
             <span>{results.length} suggestions</span>
             <span className="query-time">{queryTimeMs}ms</span>
           </div>
-          <ul className="suggestions-list">
+          <ul className="suggestions-list" role="listbox">
             {results.map((r, i) => (
               <li
                 key={r.word}
+                role="option"
+                aria-selected={i === selected}
                 className={i === selected ? 'selected' : ''}
                 onClick={() => { updatePrefix(r.word); setSelected(-1); }}
               >
                 <span className="suggestion-word">
-                  <span className="prefix-match">{prefix}</span>
+                  <span className="prefix-match">{r.word.slice(0, prefix.length)}</span>
                   {r.word.slice(prefix.length)}
                 </span>
-                <span className="frequency-badge" title="Search frequency">
-                  {r.frequency}
+                <span className="frequency">
+                  <span className="frequency-badge" title="Search frequency">
+                    {r.frequency}
+                  </span>
+                  <span className="frequency-track">
+                    <span
+                      className="frequency-fill"
+                      style={{ width: `${maxFrequency ? (r.frequency / maxFrequency) * 100 : 0}%` }}
+                    />
+                  </span>
                 </span>
               </li>
             ))}

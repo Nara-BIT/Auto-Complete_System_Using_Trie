@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="light" />
+<title>UI preview — Trie Autocomplete</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=Instrument+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<!-- Links the real stylesheet, so this preview always reflects the actual design -->
+<link rel="stylesheet" href="./frontend/src/index.css" />
+<style>
+  /* Preview-only chrome, not part of the app */
+  .preview-note {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 1rem 1.5rem 0;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.6875rem;
+    letter-spacing: 0.06em;
+    color: #8e8e8e;
+  }
+</style>
+</head>
+<body>
+
+<p class="preview-note">static preview — mock data, no backend</p>
+
+<div class="app">
+  <header class="app-header">
+    <div class="wordmark">
+      <h1>Trie Autocomplete</h1>
+      <p class="subtitle">Prefix search over a C++ trie, answered as you type.</p>
+    </div>
+    <div class="stats-bar">
+      <div class="stat"><span class="stat-label">words</span><span class="stat-num">25,143</span></div>
+      <div class="stat"><span class="stat-label">nodes</span><span class="stat-num">88,201</span></div>
+      <div class="stat engine-badge"><span class="stat-label">engine</span><span class="stat-num">c++</span></div>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="active" data-tab="autocomplete">Autocomplete</button>
+    <button data-tab="fuzzy">Fuzzy Search</button>
+    <button data-tab="insert">Insert Word</button>
+    <button data-tab="benchmark">Benchmark</button>
+  </nav>
+
+  <main class="app-main">
+
+    <!-- Autocomplete -->
+    <section data-panel="autocomplete">
+      <div class="search-container">
+        <div class="search-bar">
+          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8" />
+            <path d="M21 21l-4.35-4.35" />
+          </svg>
+          <input id="q" type="text" value="app" placeholder="Start typing a prefix — try app, ban or chr" autofocus />
+        </div>
+        <div id="results"></div>
+      </div>
+    </section>
+
+    <!-- Fuzzy -->
+    <section data-panel="fuzzy" hidden>
+      <div class="fuzzy-panel">
+        <p class="eyebrow">edit distance</p>
+        <h2>Fuzzy Search</h2>
+        <p class="panel-note">Finds words within 1 edit of what you type.</p>
+        <div class="fuzzy-controls">
+          <input type="text" value="aplle" placeholder="Enter a misspelled word" />
+          <div class="dist-control">
+            <label>max distance</label>
+            <select><option>0 (exact)</option><option selected>1</option></select>
+          </div>
+          <button>Search</button>
+        </div>
+        <div class="fuzzy-results">
+          <div class="results-header"><span>4 matches</span><span class="query-time">1.84ms</span></div>
+          <table>
+            <thead><tr><th>word</th><th>distance</th><th>frequency</th></tr></thead>
+            <tbody>
+              <tr class="exact"><td class="word-cell">apple</td><td><span class="dist-badge dist-0">0</span></td><td class="freq-cell">1,204</td></tr>
+              <tr><td class="word-cell">ample</td><td><span class="dist-badge dist-1">1</span></td><td class="freq-cell">318</td></tr>
+              <tr><td class="word-cell">apply</td><td><span class="dist-badge dist-1">1</span></td><td class="freq-cell">980</td></tr>
+              <tr><td class="word-cell">appall</td><td><span class="dist-badge dist-1">1</span></td><td class="freq-cell">44</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Insert -->
+    <section data-panel="insert" hidden>
+      <div class="insert-panel">
+        <p class="eyebrow">write path</p>
+        <h2>Insert Word</h2>
+        <p class="panel-note">Adds a word to the live trie. It becomes searchable straight away.</p>
+        <div class="insert-controls">
+          <input type="text" placeholder="Word to insert" />
+          <button>Insert word</button>
+        </div>
+        <div class="insert-result success">Added "appliance" — frequency 1</div>
+        <div class="insert-result error">That word could not be added. Check it contains only letters, then try again.</div>
+      </div>
+    </section>
+
+    <!-- Benchmark -->
+    <section data-panel="benchmark" hidden>
+      <div class="benchmark-panel">
+        <p class="eyebrow">timings</p>
+        <h2>Performance Benchmark</h2>
+        <p class="panel-note">Runs a batch of queries against the trie and reports the average per query.</p>
+        <button class="benchmark-btn">Run benchmark</button>
+        <div class="benchmark-results">
+          <div class="stats-row">
+            <div class="stat-card"><span class="stat-value">25,143</span><span class="stat-label">words in trie</span></div>
+            <div class="stat-card"><span class="stat-value">88,201</span><span class="stat-label">trie nodes</span></div>
+          </div>
+          <div class="bench-table">
+            <table>
+              <thead><tr><th>operation</th><th>queries</th><th>total ms</th><th>avg ms</th></tr></thead>
+              <tbody>
+                <tr><td>Exact search</td><td>10,000</td><td>12.4</td><td>0.0012</td></tr>
+                <tr><td>Autocomplete</td><td>10,000</td><td>184.7</td><td>0.0185</td></tr>
+                <tr><td>Fuzzy search</td><td>1,000</td><td>842.1</td><td>0.8421</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="app-footer"><p>C++ core, React frontend</p></footer>
+</div>
+
+<script>
+  // Tabs
+  document.querySelectorAll('.tabs button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.querySelectorAll('.tabs button').forEach(function (x) { x.classList.remove('active'); });
+      b.classList.add('active');
+      document.querySelectorAll('[data-panel]').forEach(function (p) {
+        p.hidden = p.dataset.panel !== b.dataset.tab;
+      });
+    });
+  });
+
+  // Mock dictionary
+  var WORDS = [
+    ['apple', 1204], ['apply', 980], ['application', 1512], ['appreciate', 412],
+    ['approach', 655], ['appropriate', 388], ['approve', 297], ['appliance', 121],
+    ['append', 205], ['applaud', 88],
+    ['banana', 640], ['band', 720], ['bandage', 145], ['bank', 1310], ['banner', 260],
+    ['chrome', 890], ['chronic', 340], ['chronicle', 150], ['christmas', 1120], ['chrysalis', 42]
+  ];
+
+  var input = document.getElementById('q');
+  var out = document.getElementById('results');
+  var selected = -1;
+  var current = [];
+
+  function render() {
+    var p = input.value.trim().toLowerCase();
+    selected = -1;
+
+    if (!p) { out.innerHTML = ''; current = []; return; }
+
+    current = WORDS.filter(function (w) { return w[0].indexOf(p) === 0; })
+                   .sort(function (a, b) { return b[1] - a[1]; });
+
+    if (!current.length) {
+      out.innerHTML = '<div class="results-panel empty"><span>No results for "' + p + '"</span></div>';
+      return;
+    }
+
+    var max = current.reduce(function (m, w) { return Math.max(m, w[1]); }, 0);
+    var rows = current.map(function (w, i) {
+      var word = w[0], freq = w[1];
+      return '<li role="option" data-i="' + i + '">' +
+        '<span class="suggestion-word">' +
+          '<span class="prefix-match">' + word.slice(0, p.length) + '</span>' +
+          word.slice(p.length) +
+        '</span>' +
+        '<span class="frequency">' +
+          '<span class="frequency-badge">' + freq + '</span>' +
+          '<span class="frequency-track"><span class="frequency-fill" style="width:' + (freq / max * 100) + '%"></span></span>' +
+        '</span>' +
+      '</li>';
+    }).join('');
+
+    out.innerHTML =
+      '<div class="results-panel">' +
+        '<div class="results-header"><span>' + current.length + ' suggestions</span>' +
+        '<span class="query-time">0.' + (10 + current.length) + 'ms</span></div>' +
+        '<ul class="suggestions-list" role="listbox">' + rows + '</ul>' +
+      '</div>';
+
+    out.querySelectorAll('li').forEach(function (li) {
+      li.addEventListener('click', function () { input.value = current[+li.dataset.i][0]; render(); });
+    });
+  }
+
+  function paint() {
+    out.querySelectorAll('li').forEach(function (li, i) {
+      li.classList.toggle('selected', i === selected);
+      li.setAttribute('aria-selected', i === selected);
+    });
+  }
+
+  input.addEventListener('input', render);
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); selected = Math.min(selected + 1, current.length - 1); paint(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); selected = Math.max(selected - 1, -1); paint(); }
+    else if (e.key === 'Enter' && selected >= 0) { input.value = current[selected][0]; render(); }
+  });
+
+  render();
+</script>
+
+</body>
+</html>
