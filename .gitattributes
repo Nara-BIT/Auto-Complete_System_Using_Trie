@@ -1,0 +1,3 @@
+# Keep the word list as LF so it stops registering as "fully changed" on
+# Windows checkouts (CRLF vs LF churn) and loads cleanly on Linux.
+backend/data/dictionary.txt text eol=lf
