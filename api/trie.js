@@ -1,4 +1,5 @@
-const { execFileSync } = require('child_process');
+const { spawn } = require('child_process');
+const readline = require('readline');
 const path = require('path');
 const fs = require('fs');
 
@@ -10,71 +11,195 @@ const BINARY_PATH = [
     path.join(BUILD_DIR, 'trie_cli.exe'),
 ].find(p => fs.existsSync(p)) || path.join(BUILD_DIR, 'trie_cli');
 
+const BACKEND_CWD = path.join(__dirname, '..', 'backend');
+const DICT_PATH = path.join(BACKEND_CWD, 'data', 'dictionary.txt');
+
+/**
+ * Bridge to the C++ trie engine.
+ *
+ * The engine runs as a SINGLE long-lived process (`trie_cli --serve`) that loads
+ * the 370k-word dictionary once at startup and then answers queries over its
+ * stdin/stdout pipe. Previously the bridge spawned a fresh `trie_cli --json`
+ * process per request, which rebuilt the whole trie every time (~223 MB, hundreds
+ * of ms) — that OOM-killed the child on small instances and showed up as
+ * "0 words / 0 nodes". With a resident process, memory stays flat and each query
+ * is O(prefix length).
+ *
+ * Responses come back one JSON object per line, in the same order requests were
+ * sent, so a simple FIFO queue correlates each response with its promise. If the
+ * engine ever fails to spawn or exits, the bridge transparently degrades to an
+ * in-process JavaScript trie so the API keeps working.
+ */
 class TrieBridge {
     constructor() {
-        this.useBinary = fs.existsSync(BINARY_PATH);
-        this.fallback = !this.useBinary;
-        if (this.fallback) {
-            console.log('[API] C++ binary not found, using Node.js fallback trie');
-            this.trie = new FallbackTrie();
+        this.proc = null;
+        this.rl = null;
+        this.queue = [];          // pending { resolve, reject }, FIFO
+        this.ready = false;
+        this.fallback = false;
+        this._fallbackTrie = null;
+
+        if (fs.existsSync(BINARY_PATH)) {
+            this._spawnServer();
         } else {
-            console.log('[API] Using C++ binary:', BINARY_PATH);
+            console.log('[API] C++ binary not found, using Node.js fallback trie');
+            this._ensureFallback();
         }
     }
 
-    callBinary(args) {
+    _spawnServer() {
         try {
-            const result = execFileSync(BINARY_PATH, ['--json', ...args], {
-                timeout: 15000,
-                maxBuffer: 10 * 1024 * 1024,
-                cwd: path.join(__dirname, '..', 'backend'),
+            this.proc = spawn(BINARY_PATH, ['--serve'], {
+                cwd: BACKEND_CWD,
+                stdio: ['pipe', 'pipe', 'pipe'],
                 windowsHide: true,
             });
-            const output = result.toString().trim();
-            // First line may be "Loaded N words..." stderr-like output, skip non-JSON lines
-            const lines = output.split('\n');
-            for (const line of lines) {
-                const trimmed = line.trim();
-                if (trimmed.startsWith('{')) {
-                    return JSON.parse(trimmed);
-                }
-            }
-            return null;
         } catch (e) {
-            console.error('[API] Binary call failed:', e.message?.substring(0, 200));
-            return null;
+            console.error('[API] Failed to spawn C++ engine:', e.message);
+            return this._degradeToFallback();
+        }
+
+        this.proc.on('error', (e) => {
+            console.error('[API] C++ engine process error:', e.message);
+            this._degradeToFallback();
+        });
+
+        this.proc.on('exit', (code, signal) => {
+            console.error(`[API] C++ engine exited (code=${code}, signal=${signal})`);
+            const err = new Error('engine exited');
+            while (this.queue.length) this.queue.shift().reject(err);
+            this._degradeToFallback();
+        });
+
+        // stderr carries logs only (readiness + "Loaded N words"), never responses.
+        this.proc.stderr.on('data', (d) => {
+            const s = d.toString().trim();
+            if (s) console.log('[trie_cli]', s);
+            if (s.includes('ready')) this.ready = true;
+        });
+
+        // Exactly one JSON response per line on stdout.
+        this.rl = readline.createInterface({ input: this.proc.stdout });
+        this.rl.on('line', (raw) => {
+            const line = raw.trim();
+            if (!line.startsWith('{') && !line.startsWith('[')) return; // ignore stray output
+            const pending = this.queue.shift();
+            if (!pending) return;
+            try {
+                pending.resolve(JSON.parse(line));
+            } catch (e) {
+                pending.reject(new Error('bad JSON from engine: ' + line.slice(0, 120)));
+            }
+        });
+
+        console.log('[API] Using C++ engine (persistent --serve):', BINARY_PATH);
+    }
+
+    // Build the in-process JS trie on demand (loaded from the same dictionary).
+    _ensureFallback() {
+        if (!this._fallbackTrie) {
+            this._fallbackTrie = new FallbackTrie();
+            try {
+                this._fallbackTrie.loadDictionary(DICT_PATH);
+            } catch (e) {
+                console.error('[API] Fallback dictionary load failed:', e.message);
+            }
+        }
+        this.fallback = true;
+        return this._fallbackTrie;
+    }
+
+    _degradeToFallback() {
+        if (this.rl) { try { this.rl.close(); } catch (e) { /* ignore */ } this.rl = null; }
+        this.proc = null;
+        if (!this.fallback) {
+            console.error('[API] Degrading to Node.js fallback trie');
+            this._ensureFallback();
         }
     }
 
-    insert(word) {
-        if (this.fallback) return this.trie.insert(word);
-        return this.callBinary(['insert', word]) || { success: false };
+    // Send one tab-delimited command line; resolve with the parsed JSON response.
+    _send(fields) {
+        const line = fields.map(f => String(f).replace(/[\t\r\n]/g, ' ')).join('\t');
+        return new Promise((resolve, reject) => {
+            if (this.fallback || !this.proc || !this.proc.stdin.writable) {
+                return reject(new Error('engine not available'));
+            }
+            this.queue.push({ resolve, reject });
+            this.proc.stdin.write(line + '\n');
+        });
     }
 
-    search(word) {
-        if (this.fallback) return this.trie.search(word);
-        const result = this.callBinary(['search', word]);
-        return result || { frequency: 0 };
+    async insert(word) {
+        if (this.fallback) return this._ensureFallback().insert(word);
+        try {
+            return await this._send(['insert', word]);
+        } catch (e) {
+            return this._ensureFallback().insert(word);
+        }
     }
 
-    autocomplete(prefix, k = 10) {
-        if (this.fallback) return this.trie.autocomplete(prefix, k);
-        const result = this.callBinary(['autocomplete', prefix, String(k)]);
-        return result?.results || [];
+    async search(word) {
+        if (this.fallback) return this._ensureFallback().search(word);
+        try {
+            return await this._send(['search', word]);
+        } catch (e) {
+            return this._ensureFallback().search(word);
+        }
     }
 
-    fuzzySearch(word, maxDist = 1) {
-        if (this.fallback) return this.trie.fuzzySearch(word, maxDist);
-        const result = this.callBinary(['fuzzy', word, String(maxDist)]);
-        return result?.results || [];
+    async autocomplete(prefix, k = 10) {
+        if (this.fallback) return this._ensureFallback().autocomplete(prefix, k);
+        try {
+            const r = await this._send(['autocomplete', prefix, String(k)]);
+            return r?.results || [];
+        } catch (e) {
+            return this._ensureFallback().autocomplete(prefix, k);
+        }
     }
 
-    benchmark() {
+    async fuzzySearch(word, maxDist = 1) {
+        if (this.fallback) return this._ensureFallback().fuzzySearch(word, maxDist);
+        try {
+            const r = await this._send(['fuzzy', word, String(maxDist)]);
+            return r?.results || [];
+        } catch (e) {
+            return this._ensureFallback().fuzzySearch(word, maxDist);
+        }
+    }
+
+    async benchmark() {
         if (this.fallback) return this.fallbackBenchmark();
-        return this.callBinary(['benchmark']) || {};
+        try {
+            return await this._send(['benchmark']);
+        } catch (e) {
+            return this.fallbackBenchmark();
+        }
+    }
+
+    async getStats() {
+        if (this.fallback) {
+            const t = this._ensureFallback();
+            return { wordCount: t.getWordCount(), nodeCount: t.getNodeCount() };
+        }
+        try {
+            return await this._send(['stats']);
+        } catch (e) {
+            const t = this._ensureFallback();
+            return { wordCount: t.getWordCount(), nodeCount: t.getNodeCount() };
+        }
+    }
+
+    // The persistent C++ engine loads the dictionary itself on startup, so this
+    // is a no-op there and simply reports current stats. In fallback mode it
+    // loads the given file into the in-process trie.
+    async loadDictionary(filepath) {
+        if (this.fallback) return this._ensureFallback().loadDictionary(filepath);
+        return this.getStats();
     }
 
     fallbackBenchmark() {
+        const t = this._ensureFallback();
         const sampleWords = [];
         const collectSample = (node, prefix, count) => {
             if (count <= 0 || !node) return count;
@@ -84,19 +209,19 @@ class TrieBridge {
             }
             return count;
         };
-        collectSample(this.trie.root, '', 200);
+        collectSample(t.root, '', 200);
 
         let searchTime = 0;
         const searchCount = Math.min(1000, sampleWords.length * 10);
         let s = Date.now();
-        for (let i = 0; i < searchCount; i++) this.trie.search(sampleWords[i % sampleWords.length]);
+        for (let i = 0; i < searchCount; i++) t.search(sampleWords[i % sampleWords.length]);
         searchTime = Date.now() - s;
 
         let acTime = 0;
         s = Date.now();
         for (let i = 0; i < 1000; i++) {
             const w = sampleWords[i % sampleWords.length];
-            this.trie.autocomplete(w.substring(0, Math.min(3, w.length)), 10);
+            t.autocomplete(w.substring(0, Math.min(3, w.length)), 10);
         }
         acTime = Date.now() - s;
 
@@ -104,7 +229,7 @@ class TrieBridge {
         s = Date.now();
         for (let i = 0; i < 100; i++) {
             const w = sampleWords[i % sampleWords.length];
-            this.trie.fuzzySearch(w.substring(0, Math.max(1, w.length - 1)), 1);
+            t.fuzzySearch(w.substring(0, Math.max(1, w.length - 1)), 1);
         }
         fuzzyTime = Date.now() - s;
 
@@ -112,26 +237,12 @@ class TrieBridge {
             search: { queries: searchCount, timeMs: searchTime, avgPerQuery: (searchTime / searchCount).toFixed(3) },
             autocomplete: { queries: 1000, timeMs: acTime, avgPerQuery: (acTime / 1000).toFixed(3) },
             fuzzy: { queries: 100, timeMs: fuzzyTime, avgPerQuery: (fuzzyTime / 100).toFixed(3) },
-            stats: this.getStats()
+            stats: { wordCount: t.getWordCount(), nodeCount: t.getNodeCount() }
         };
-    }
-
-    loadDictionary(filepath) {
-        if (this.fallback) return this.trie.loadDictionary(filepath);
-        // Binary loads dictionary on startup automatically
-        return this.getStats();
-    }
-
-    getStats() {
-        if (this.fallback) {
-            return { wordCount: this.trie.getWordCount(), nodeCount: this.trie.getNodeCount() };
-        }
-        const result = this.callBinary(['stats']);
-        return result || { wordCount: 0, nodeCount: 0 };
     }
 }
 
-// Node.js fallback trie (used when C++ binary is unavailable)
+// Node.js fallback trie (used when the C++ engine is unavailable or fails)
 class TrieNode {
     constructor() {
         this.children = {};

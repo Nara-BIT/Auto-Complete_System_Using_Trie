@@ -223,7 +223,7 @@ void Trie::loadDictionary(const std::string& filepath) {
         }
     }
 
-    std::cout << "Loaded " << count << " words from dictionary." << std::endl;
+    std::cerr << "Loaded " << count << " words from dictionary." << std::endl;
 }
 
 void Trie::collectWords(const TrieNode* node, std::vector<std::string>& words) const {

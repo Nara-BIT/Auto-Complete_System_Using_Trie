@@ -11,14 +11,12 @@ app.use(express.json());
 
 const trie = new TrieBridge();
 
-// Load dictionary on startup (for fallback mode)
+// The persistent C++ engine loads the dictionary itself on startup; in fallback
+// mode this loads it into the in-process trie. Fire-and-forget with a log.
 const dictPath = path.join(__dirname, '..', 'backend', 'data', 'dictionary.txt');
-try {
-    trie.loadDictionary(dictPath);
-    console.log('[API] Dictionary loaded');
-} catch (e) {
-    console.log('[API] No dictionary found, starting empty');
-}
+trie.loadDictionary(dictPath)
+    .then((stats) => console.log('[API] Dictionary ready:', stats))
+    .catch((e) => console.log('[API] Dictionary load issue:', e.message));
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -26,47 +24,48 @@ app.get('/api/health', (req, res) => {
 });
 
 // Insert a word
-app.post('/api/insert', (req, res) => {
+app.post('/api/insert', async (req, res) => {
     const { word } = req.body;
     if (!word) return res.status(400).json({ error: 'word is required' });
-    const result = trie.insert(word);
-    res.json({ ...result, word, stats: trie.getStats() });
+    const result = await trie.insert(word);
+    const stats = await trie.getStats();
+    res.json({ ...result, word, stats });
 });
 
 // Search exact word
-app.post('/api/search', (req, res) => {
+app.post('/api/search', async (req, res) => {
     const { word } = req.body;
     if (!word) return res.status(400).json({ error: 'word is required' });
-    const result = trie.search(word);
+    const result = await trie.search(word);
     res.json({ word, ...result });
 });
 
 // Autocomplete (prefix -> top-K)
-app.post('/api/autocomplete', (req, res) => {
+app.post('/api/autocomplete', async (req, res) => {
     const { prefix = '', k = 10 } = req.body;
     const start = Date.now();
-    const results = trie.autocomplete(prefix, k);
+    const results = await trie.autocomplete(prefix, k);
     const elapsed = Date.now() - start;
     res.json({ prefix, k, results, queryTimeMs: elapsed });
 });
 
 // Fuzzy search
-app.post('/api/fuzzy', (req, res) => {
+app.post('/api/fuzzy', async (req, res) => {
     const { word = '', maxDist = 1 } = req.body;
     const start = Date.now();
-    const results = trie.fuzzySearch(word, maxDist);
+    const results = await trie.fuzzySearch(word, maxDist);
     const elapsed = Date.now() - start;
     res.json({ word, maxDist, results, queryTimeMs: elapsed });
 });
 
 // Stats
-app.get('/api/stats', (req, res) => {
-    res.json(trie.getStats());
+app.get('/api/stats', async (req, res) => {
+    res.json(await trie.getStats());
 });
 
 // Benchmark
-app.get('/api/benchmark', (req, res) => {
-    const data = trie.benchmark();
+app.get('/api/benchmark', async (req, res) => {
+    const data = await trie.benchmark();
     res.json(data);
 });
 
@@ -84,5 +83,5 @@ app.get('*', (req, res) => {
 
 app.listen(PORT, () => {
     console.log(`[API] Server running on http://localhost:${PORT}`);
-    console.log(`[API] Engine: ${trie.fallback ? 'Node.js fallback' : 'C++ binary'}`);
+    console.log(`[API] Engine: ${trie.fallback ? 'Node.js fallback' : 'C++ binary (persistent)'}`);
 });

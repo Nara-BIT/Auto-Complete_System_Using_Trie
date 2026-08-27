@@ -14,6 +14,14 @@ target_include_directories(trielib PUBLIC include)
 add_executable(trie_cli src/main.cpp)
 target_link_libraries(trie_cli PRIVATE trielib)
 
+# Statically link the C++ runtime. The production image compiles this binary in
+# gcc:13 but runs it in node:20-slim, whose older libstdc++ can lack the newer
+# GLIBCXX symbols the binary needs (causing it to fail to start). Bundling the
+# runtime makes the binary self-contained and portable across those images.
+if(NOT MSVC)
+    target_link_options(trie_cli PRIVATE -static-libstdc++ -static-libgcc)
+endif()
+
 enable_testing()
 find_package(GTest QUIET)
 if(GTest_FOUND)
