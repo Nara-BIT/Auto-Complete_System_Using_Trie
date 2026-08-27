@@ -1,6 +1,11 @@
 import type { AutocompleteResponse, FuzzyResponse, BenchmarkData, InsertResponse } from '../types';
 
-const API_BASE = 'http://localhost:3001/api';
+// Same-origin '/api' so requests work in BOTH environments:
+//  - dev: the Vite dev server proxies /api -> http://localhost:3001 (see vite.config.ts)
+//  - prod: Express serves the built SPA and the API from one origin
+// A hardcoded http://localhost:3001 would break the deployed site, since the
+// visitor's browser would resolve localhost to their own machine.
+const API_BASE = '/api';
 
 async function post<T>(path: string, body: Record<string, unknown>): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
